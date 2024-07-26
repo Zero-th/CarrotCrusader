@@ -1,11 +1,14 @@
 import helix
-
 import random
+
+GAME_ASSET_DIR:str = "assets\\char\\playable\\bunny\\"
 
 FPS:int=144
 SLIDING:bool = False
-SLIDE_SPEED:int = 320 # pixel value
+SLIDE_SPEED:int = 500 # pixel value
 JUMP_HEIGHT:int = -350 # pixel value
+SLIDE_MAX:float = 80.0 # pixel value
+SLIDE_DIST:float = 0.0 # pixel value
 
 class BunnyGame:
     controls:dict = {
@@ -61,7 +64,7 @@ class BunnyGame:
         self.player_transform.set_speed(200)
 
         self.tiles = []
-        for i in range(10):
+        for i in range(100):
             for j in range(5):
                 tile = helix.HXobject(sgrid=self.grid)
                 tile.add_component(
@@ -71,7 +74,7 @@ class BunnyGame:
                     loop=True,
                     sheet_path="assets\\tiles\\anim\\grassy_rock_sheet.png"
                 )
-                tile.add_component(helix.components.HXtransform, size=[32, 32], location=[32*i, 200*j])
+                tile.add_component(helix.components.HXtransform, size=[32, 32], location=[32*i, 200*(j+1)])
                 tile.add_component(helix.components.HXcollider, dimensions=[32, 32])
                 self.tiles.append(tile)
 
@@ -86,7 +89,7 @@ class BunnyGame:
                 dimensions=[32,32],
                 flip_speed=16,
                 loop_delay=True,
-                sheet_path="assets\\char\\playable\\bunny\\idle_sheet.png"
+                sheet_path=f"{GAME_ASSET_DIR}idle_sheet.png"
             )
         self.player_actiongraph.add_action(
             action="idle",
@@ -107,7 +110,7 @@ class BunnyGame:
                 dimensions=[32,32],
                 flip_speed=6,
                 loop=True,
-                sheet_path="assets\\char\\playable\\bunny\\run_sheet.png"
+                sheet_path=f"{GAME_ASSET_DIR}run_sheet.png"
             )
         self.player_actiongraph.add_action(
             action="run",
@@ -125,7 +128,7 @@ class BunnyGame:
                 helix.components.HXanim,
                 dimensions=[32,32],
                 flip_speed=4,
-                sheet_path="assets\\char\\playable\\bunny\\jump_sheet.png"
+                sheet_path=f"{GAME_ASSET_DIR}jump_sheet.png"
             )
         self.player_actiongraph.add_action(
             action="jump",
@@ -146,7 +149,7 @@ class BunnyGame:
                 dimensions=[32,32],
                 flip_speed=100,
                 loop=True,
-                sheet_path="assets\\char\\playable\\bunny\\slide_sheet.png"
+                sheet_path=f"{GAME_ASSET_DIR}slide_sheet.png"
             )
         self.player_actiongraph.add_action(
             action="slide",
@@ -188,11 +191,18 @@ class BunnyGame:
             self.camera.zoom += 0.1
 
         # slide
-        if self.event_handler.is_key_triggered(self.controls["Slide"]):
+        global SLIDING
+        global SLIDE_MAX
+        global SLIDE_DIST
+        if SLIDING and SLIDE_DIST != SLIDE_MAX:
             if self.player_transform.negx:
                 self.player_transform.set_velocity(-SLIDE_SPEED, self.player_transform.velocity.y)
             else:
                 self.player_transform.set_velocity(SLIDE_SPEED, self.player_transform.velocity.y)
+            SLIDE_DIST += 1
+        if SLIDE_DIST >= SLIDE_MAX:
+            SLIDE_DIST = 0.0
+            SLIDING = False
 
         # jump
         if self.event_handler.is_key_triggered(self.controls["Jump"]):
@@ -232,6 +242,7 @@ class BunnyGame:
                 show_rects=False, show_nodes=False, show_grid=True, show_colliders=True
             )
         self.running = False
+
 
 if __name__ == '__main__':
     BunnyGame().run()

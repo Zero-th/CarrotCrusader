@@ -25,6 +25,7 @@ class BunnyGame:
         self.window:helix.gui.HXwindow = helix.gui.HXwindow(color=[137, 93, 93])
         world_bounds = self.window.dimensions[0]*3, self.window.dimensions[1]*3
         self.phys_subsys = helix.physics.HXphysics()
+        self.phys_subsys.set_friction(16000)
         self.renderer:helix.HXrenderer=helix.HXrenderer(3)
         self.cursor:helix.events.HXcursor = helix.events.HXcursor()
         self.camera:helix.HXcamera=helix.HXcamera(self.window.display, world_bounds)
@@ -123,7 +124,7 @@ class BunnyGame:
             self.player.set_component(
                 helix.components.HXanim,
                 dimensions=[32,32],
-                flip_speed=6,
+                flip_speed=4,
                 sheet_path="assets\\char\\playable\\bunny\\jump_sheet.png"
             )
         self.player_actiongraph.add_action(

@@ -8,8 +8,8 @@ GAME_ASSET_DIR:str = "assets\\char\\playable\\bunny\\"
 FPS:int=144
 SLIDING:bool = False
 ATTACKING:bool = False
-SLIDE_SPEED:int = 170 # pixel value
-JUMP_HEIGHT:int = -150 # pixel value
+SLIDE_SPEED:int = 300 # pixel value
+JUMP_HEIGHT:int = -380 # pixel value
 SLIDE_MAX:float = 80.0 # pixel value
 SLIDE_DIST:float = 0.0 # pixel value
 
@@ -32,8 +32,8 @@ class HXcooldown:
 
 
 def readTSX(path: str) -> dict:
-    print(f"READING TILESET FROM SRC {path}")
-    tree = ET.parse(path)
+    print(f"READING TSX FROM SRC {f'map_data/{path}'}")
+    tree = ET.parse(f"map_data/{path}")
     root = tree.getroot()
     
     tileset_src = root.find('image').get('source')
@@ -44,8 +44,8 @@ def readTSX(path: str) -> dict:
     print(tileset_src, tile_dim)
     return {'src': tileset_src, 'tile_dim': tile_dim}
 
-def readTMX(path: str, renderer, grid) -> list[helix.HXobject]:
-    print(f"READING MAP FROM SRC {path}")
+def readTMX(path: str, renderer, grid) -> dict[str, list[helix.HXobject]]:
+    print(f"READING TMX FROM SRC {path}")
     tree = ET.parse(path)
     root = tree.getroot()
     
@@ -59,30 +59,43 @@ def readTMX(path: str, renderer, grid) -> list[helix.HXobject]:
     tileset_source = tileset.get('source')
     tileset_data = readTSX(tileset_source)
 
-    layer = root.find('layer')
-    data = layer.find('data').text.strip().split(',')
+    layers = root.findall('layer')
+    tile_layers = {'collision': [], 'fill': []}
 
-    tiles = []
-    for row in range(map_height):
-        for col in range(map_width):
-            tile_id = int(data[row * map_width + col])
-            if tile_id > 0:
-                # Calculate the position
-                x = col * tilewidth
-                y = row * tileheight
+    tiles = 0
+    colliders = 0
+    for layer in layers:
+        layer_name = layer.get('name')
+        if layer_name in tile_layers:
+            data = layer.find('data').text.strip().split(',')
+            for row in range(map_height):
+                for col in range(map_width):
+                    tile_id = int(data[row * map_width + col])
+                    if tile_id > 0:
+                        # Calculate the position
+                        x = col * tilewidth
+                        y = row * tileheight
 
-                # Create and configure the tile entity
-                tile = helix.HXobject(sgrid=grid)
-                tile.add_component(helix.components.HXtexture, size=[tilewidth, tileheight], path=tileset_data['src'])
-                tile.add_component(helix.components.HXtransform, location=[x, y])
-                tile_transform = tile.components[helix.components.HXtransform]
-                tile_transform.dynamic = False
-                tile.add_component(helix.components.HXcollider, dimensions=[tilewidth, tileheight])
+                        # Create and configure the tile entity
+                        tiles+=1
+                        tile = helix.HXobject(sgrid=grid)
+                        tile.add_component(helix.components.HXtexture, size=[tilewidth, tileheight], path=f"map_data/{tileset_data['src']}")
+                        tile.add_component(helix.components.HXtransform, location=[x, y])
+                        tile_transform = tile.components[helix.components.HXtransform]
+                        tile_transform.dynamic = False
+                        if layer_name == 'collision':
+                            colliders+=1
+                            tile.add_component(helix.components.HXcollider, dimensions=[tilewidth, tileheight])
 
-                # Add to renderer
-                renderer.add_to_layer(tile)
-                tiles.append(tile)
-    return tiles
+                        # Add to renderer
+                        renderer.add_to_layer(tile)
+                        tile_layers[layer_name].append(tile)
+
+    print(f"NUM TILES {tiles} NUM COLLIDERS {colliders}")
+    return tile_layers
+
+def load_map_tiled(path:str, renderer:helix.HXrenderer, grid:helix.HXsgrid) -> dict[str, list[helix.HXobject]]:
+    return readTMX(path, renderer, grid)
 
 def load_map_tiled(path:str, renderer:helix.HXrenderer, grid:helix.HXsgrid):
     return readTMX(path, renderer, grid)
@@ -102,12 +115,11 @@ class BunnyGame:
 
     def __init__(self):
         self.running:bool = True
-        self.clock:helix.clock.HXclock = helix.clock.HXclock(target=FPS, fixed_step=1.0/FPS)
-        self.window:helix.gui.HXwindow = helix.gui.HXwindow(color=[137, 93, 93])
+        self.clock:helix.clock.HXclock = helix.clock.HXclock(target=FPS, fixed_step=1.0/60)
+        self.window:helix.gui.HXwindow = helix.gui.HXwindow(color=[137, 93, 93], size=[1400, 800])
         world_bounds = self.window.dimensions[0]*3, self.window.dimensions[1]*3
         self.phys_subsys = helix.physics.HXphysics()
-        self.phys_subsys.set_gravity(200)
-        self.phys_subsys.set_friction(1600)
+        self.phys_subsys.set_friction(9999)
         self.renderer:helix.HXrenderer=helix.HXrenderer(3)
         self.cursor:helix.events.HXcursor = helix.events.HXcursor()
         self.camera:helix.HXcamera=helix.HXcamera(self.window.display, world_bounds)
@@ -120,7 +132,7 @@ class BunnyGame:
         self.configure_entities()
         self.event_handler.register_controller("default", self.default_controller)
 
-        self.tiles = load_map_tiled(f"{MAP_DATA_DIR}map_iguess.tmx", self.renderer, self.grid)
+        self.tiles_layer_data = load_map_tiled(f"{MAP_DATA_DIR}map_iguess.tmx", self.renderer, self.grid)
 
     def init_entities(self):
         self.player = helix.HXobject(sgrid=self.grid)
@@ -142,7 +154,7 @@ class BunnyGame:
         self.player_actiongraph:helix.components.HXactiongraph = self.player.components[helix.components.HXactiongraph]
 
         self.player_transform.dynamic = True
-        self.player_transform.set_speed(100)
+        self.player_transform.set_speed(200)
 
         self.dummy = helix.HXobject(sgrid=self.grid)
         self.dummy.add_component(helix.components.HXtexture, size=[32, 64])
@@ -214,7 +226,7 @@ class BunnyGame:
         
         def jump_con() -> bool:
             global SLIDING
-            if self.event_handler.is_key_triggered(self.controls["Jump"]) and int(self.player_transform.velocity.y) < 0 or int(self.player_transform.velocity.y) > 25:
+            if self.event_handler.is_key_triggered(self.controls["Jump"]) and int(self.player_transform.velocity.y) < 0 or int(self.player_transform.velocity.y) > 50:
                 SLIDING = False
                 return True
             return False
@@ -334,6 +346,7 @@ class BunnyGame:
 
     def run(self, *args, **kwargs):
         while not self.event_handler.process():
+            helix.pg.display.set_caption(f"FPS: {self.clock.current}")
             self.clock.tick()
             self.camera.update(self.clock.delta_time)
             self.cursor.update(self.camera.zoom, offset=self.camera.get_location())
@@ -350,15 +363,15 @@ class BunnyGame:
                 offset=self.camera.get_location()
             )
             
-            self.dummy.update(
-                delta_time=self.clock.delta_time, 
-                offset=self.camera.get_location()
-            )
+            # self.dummy.update(
+            #     delta_time=self.clock.delta_time, 
+            #     offset=self.camera.get_location()
+            # )
 
             [ tile.update(
                 delta_time=self.clock.delta_time, 
                 offset=self.camera.get_location()
-                ) for tile in self.tiles ]
+                ) for layer in self.tiles_layer_data for tile in self.tiles_layer_data['collision'] ]
 
             # TODO: make the renderer configurable, with custom pre and post rendering logic (ui, fx, etc...)
             self.renderer.render(
@@ -367,7 +380,7 @@ class BunnyGame:
                 self.window,
                 self.camera.zoom,
                 self.camera.get_location(),
-                show_rects=True, show_nodes=True, show_grid=True, show_colliders=True
+                show_rects=False, show_nodes=False, show_grid=False, show_colliders=True
             )
             
         self.running = False

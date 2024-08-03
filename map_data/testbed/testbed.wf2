@@ -1,0 +1,69 @@
+{
+   "mapInfo": {
+      "version": "1.1.2024-beta",
+      "name": "testbed",
+      "width/height": [
+         1000.0,
+         1000.0
+      ],
+      "tilesize": 32
+   },
+   "background": {
+      "64;192": {
+         "id": 0,
+         "subLayer": 0,
+         "layer": "background",
+         "properties": {
+            "collisions": true
+         },
+         "asset": "D:/dev/gamedev/CarrotCrusader/map_data/testbed/tset001.png"
+      },
+      "64;224": {
+         "id": 1,
+         "subLayer": 0,
+         "layer": "background",
+         "properties": {
+            "collisions": true
+         },
+         "asset": "D:/dev/gamedev/CarrotCrusader/map_data/testbed/tset001.png"
+      },
+      "96;224": {
+         "id": 1,
+         "subLayer": 0,
+         "layer": "background",
+         "properties": {
+            "collisions": true
+         },
+         "asset": "D:/dev/gamedev/CarrotCrusader/map_data/testbed/tset001.png"
+      },
+      "96;192": {
+         "id": 0,
+         "subLayer": 0,
+         "layer": "background",
+         "properties": {
+            "collisions": true
+         },
+         "asset": "D:/dev/gamedev/CarrotCrusader/map_data/testbed/tset001.png"
+      },
+      "128;224": {
+         "id": 1,
+         "subLayer": 0,
+         "layer": "background",
+         "properties": {
+            "collisions": true
+         },
+         "asset": "D:/dev/gamedev/CarrotCrusader/map_data/testbed/tset001.png"
+      },
+      "128;192": {
+         "id": 0,
+         "subLayer": 0,
+         "layer": "background",
+         "properties": {
+            "collisions": true
+         },
+         "asset": "D:/dev/gamedev/CarrotCrusader/map_data/testbed/tset001.png"
+      }
+   },
+   "midground": {},
+   "foreground": {}
+}

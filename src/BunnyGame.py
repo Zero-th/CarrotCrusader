@@ -1,6 +1,5 @@
 import helix
-import random
-import xml.etree.ElementTree as ET
+import random, json
 
 MAP_DATA_DIR:str = "map_data\\"
 GAME_ASSET_DIR:str = "assets\\char\\playable\\bunny\\"
@@ -30,75 +29,44 @@ class HXcooldown:
             self.time = 0
             self.cooling = False
 
+def loadWF2Map(path: str, renderer, grid) -> dict[str, list[helix.HXobject]]:
+    with open(path, 'r') as file:
+        map_data = json.load(file)
 
-def readTSX(path: str) -> dict:
-    print(f"READING TSX FROM SRC {f'map_data/{path}'}")
-    tree = ET.parse(f"map_data/{path}")
-    root = tree.getroot()
+    map_info = map_data["mapInfo"]
+    tile_size = map_info["tilesize"]
     
-    tileset_src = root.find('image').get('source')
-    tilewidth = int(root.get('tilewidth'))
-    tileheight = int(root.get('tileheight'))
-    tile_dim = helix.math.vec2(tilewidth, tileheight)
-
-    print(tileset_src, tile_dim)
-    return {'src': tileset_src, 'tile_dim': tile_dim}
-
-def readTMX(path: str, renderer, grid) -> dict[str, list[helix.HXobject]]:
-    print(f"READING TMX FROM SRC {path}")
-    tree = ET.parse(path)
-    root = tree.getroot()
+    layers = ['background', 'midground', 'foreground']
+    tile_layers = {layer: [] for layer in layers}
     
-    map_width = int(root.get('width'))
-    map_height = int(root.get('height'))
-    tilewidth = int(root.get('tilewidth'))
-    tileheight = int(root.get('tileheight'))
-
-    tileset = root.find('tileset')
-    firstgid = int(tileset.get('firstgid'))
-    tileset_source = tileset.get('source')
-    tileset_data = readTSX(tileset_source)
-
-    layers = root.findall('layer')
-    tile_layers = {'collision': [], 'fill': []}
-
-    tiles = 0
-    colliders = 0
     for layer in layers:
-        layer_name = layer.get('name')
-        if layer_name in tile_layers:
-            data = layer.find('data').text.strip().split(',')
-            for row in range(map_height):
-                for col in range(map_width):
-                    tile_id = int(data[row * map_width + col])
-                    if tile_id > 0:
-                        # Calculate the position
-                        x = col * tilewidth
-                        y = row * tileheight
+        if layer in map_data:
+            for key, value in map_data[layer].items():
+                x, y = map(float, key.split(';'))
+                x = int(x)
+                y = int(y)
+                
+                tile_id = value["id"]
+                asset_path = value["asset"]
+                collisions = value["properties"]["collisions"]
+                tile_set = helix.gui.load_image_sheet(asset_path, [tile_size, tile_size])
 
-                        # Create and configure the tile entity
-                        tiles+=1
-                        tile = helix.HXobject(sgrid=grid)
-                        tile.add_component(helix.components.HXtexture, size=[tilewidth, tileheight], path=f"map_data/{tileset_data['src']}")
-                        tile.add_component(helix.components.HXtransform, location=[x, y])
-                        tile_transform = tile.components[helix.components.HXtransform]
-                        tile_transform.dynamic = False
-                        if layer_name == 'collision':
-                            colliders+=1
-                            tile.add_component(helix.components.HXcollider, dimensions=[tilewidth, tileheight])
+                # Create and configure the tile entity
+                tile = helix.HXobject(sgrid=grid)
+                tile.add_component(helix.components.HXtexture, size=[tile_size, tile_size])
+                tile.get_component(helix.components.HXtexture).set(tile_set[int(tile_id)])
+                tile.add_component(helix.components.HXtransform, location=[x, y])
+                tile_transform = tile.components[helix.components.HXtransform]
+                tile_transform.dynamic = False
 
-                        # Add to renderer
-                        renderer.add_to_layer(tile)
-                        tile_layers[layer_name].append(tile)
+                if collisions:
+                    tile.add_component(helix.components.HXcollider, dimensions=[tile_size, tile_size])
 
-    print(f"NUM TILES {tiles} NUM COLLIDERS {colliders}")
+                # Add to renderer
+                renderer.add_to_layer(tile)
+                tile_layers[layer].append(tile)
+
     return tile_layers
-
-def load_map_tiled(path:str, renderer:helix.HXrenderer, grid:helix.HXsgrid) -> dict[str, list[helix.HXobject]]:
-    return readTMX(path, renderer, grid)
-
-def load_map_tiled(path:str, renderer:helix.HXrenderer, grid:helix.HXsgrid):
-    return readTMX(path, renderer, grid)
 
 class BunnyGame:
     controls:dict = {
@@ -122,7 +90,8 @@ class BunnyGame:
         self.phys_subsys.set_friction(9999)
         self.renderer:helix.HXrenderer=helix.HXrenderer(3)
         self.cursor:helix.events.HXcursor = helix.events.HXcursor()
-        self.camera:helix.HXcamera=helix.HXcamera(self.window.display, world_bounds)
+        self.camera:helix.HXcam2D=helix.HXcam2D(self.window, [0,0], world_bounds, 30.0)
+        # self.camera:helix.HXcamera=helix.HXcamera(self.window.display, world_bounds)
         self.grid:helix.HXsgrid = helix.HXsgrid(*world_bounds, helix.math.vec2(300, 300))
         self.event_handler:helix.events.HXevents = helix.events.HXevents()
 
@@ -132,7 +101,7 @@ class BunnyGame:
         self.configure_entities()
         self.event_handler.register_controller("default", self.default_controller)
 
-        self.tiles_layer_data = load_map_tiled(f"{MAP_DATA_DIR}map_iguess.tmx", self.renderer, self.grid)
+        self.tiles_layer_data = loadWF2Map(f"{MAP_DATA_DIR}\\testbed\\testbed.wf2", self.renderer, self.grid)
 
     def init_entities(self):
         self.player = helix.HXobject(sgrid=self.grid)
@@ -316,9 +285,9 @@ class BunnyGame:
 
         # zoom
         if self.event_handler.mouse_wheelu:
-            self.camera.zoom -= 0.1
+            self.camera.zoom_value -= 0.1
         if self.event_handler.mouse_wheeld:
-            self.camera.zoom += 0.1
+            self.camera.zoom_value += 0.1
 
         # slide
         global SLIDING
@@ -348,8 +317,8 @@ class BunnyGame:
         while not self.event_handler.process():
             helix.pg.display.set_caption(f"FPS: {self.clock.current}")
             self.clock.tick()
-            self.camera.update(self.clock.delta_time)
-            self.cursor.update(self.camera.zoom, offset=self.camera.get_location())
+            self.camera.camera_system(self.player, self.clock.delta_time)
+            self.cursor.update(self.camera.zoom, offset=self.camera.position)
             
             self.slide_cd.update(self.clock.delta_time)
             self.attack_cd.update(self.clock.delta_time)
@@ -359,28 +328,27 @@ class BunnyGame:
                 self.clock.reset_fupdate()
 
             self.player.update(
-                delta_time=self.clock.delta_time, 
-                offset=self.camera.get_location()
+                delta_time=self.clock.delta_time,
+                offset=self.camera.position
             )
             
-            # self.dummy.update(
-            #     delta_time=self.clock.delta_time, 
-            #     offset=self.camera.get_location()
-            # )
+            self.dummy.update(
+                delta_time=self.clock.delta_time, 
+                offset=self.camera.position
+            )
 
             [ tile.update(
                 delta_time=self.clock.delta_time, 
-                offset=self.camera.get_location()
-                ) for layer in self.tiles_layer_data for tile in self.tiles_layer_data['collision'] ]
+                offset=self.camera.position
+                ) for layer in self.tiles_layer_data for tile in self.tiles_layer_data[layer] if tile.has_component(helix.HXcollider)]
 
-            # TODO: make the renderer configurable, with custom pre and post rendering logic (ui, fx, etc...)
             self.renderer.render(
                 self.grid,
                 self.cursor,
                 self.window,
-                self.camera.zoom,
-                self.camera.get_location(),
-                show_rects=False, show_nodes=False, show_grid=False, show_colliders=True
+                self.camera.zoom_value,
+                self.camera.position,
+                show_rects=True, show_nodes=False, show_grid=True, show_colliders=True
             )
             
         self.running = False
